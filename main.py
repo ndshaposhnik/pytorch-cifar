@@ -89,6 +89,8 @@ optimizer = optim.compressedSGD(net.parameters(), lr=args.lr,
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
 
+loss_history = []
+
 # Training
 def train(epoch):
     print('\nEpoch: %d' % epoch)
@@ -108,6 +110,8 @@ def train(epoch):
         _, predicted = outputs.max(1)
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
+
+        loss_history.append(train_loss)
 
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
@@ -147,8 +151,12 @@ def test(epoch):
         torch.save(state, './checkpoint/ckpt.pth')
         best_acc = acc
 
-
 for epoch in range(start_epoch, start_epoch+200):
     train(epoch)
     test(epoch)
     scheduler.step()
+
+import csv
+with open('loss_history', "w") as f:
+    write = csv.writer(f)
+    write.writerow(loss_history)
