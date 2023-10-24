@@ -14,8 +14,6 @@ import argparse
 from models import *
 from utils import progress_bar
 
-from optimizers import compressedSGD
-
 
 parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -86,7 +84,7 @@ if args.resume:
     start_epoch = checkpoint['epoch']
 
 criterion = nn.CrossEntropyLoss()
-optimizer = optimizers.compressedSGD(net.parameters(), lr=args.lr,
+optimizer = optim.compressedSGD(net.parameters(), lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
