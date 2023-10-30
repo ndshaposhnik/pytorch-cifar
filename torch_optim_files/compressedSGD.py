@@ -76,8 +76,8 @@ class compressedSGD(Optimizer):
         for p in group['params']:
             if p.grad is not None:
                 params_with_grad.append(p)
-                d_p_list.append(p.grad)
-                #d_p_list.append(compressor.compress(p.grad))
+                #d_p_list.append(p.grad)
+                d_p_list.append(compressor.compress(p.grad))
                                 
                 if p.grad.is_sparse:
                     has_sparse_grad = True
