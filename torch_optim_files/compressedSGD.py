@@ -4,6 +4,7 @@ from .optimizer import (Optimizer, required, _use_grad_for_differentiable, _defa
                         _differentiable_doc, _foreach_doc, _maximize_doc)
 from typing import List, Optional
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
+import math
 
 class Compression:
     def compress(self, tensor):
@@ -20,13 +21,11 @@ class TopKCompressor(Compression):
         assert alpha > 0, 'Number of transmitted coordinates must be positive'
         self.alpha = alpha
 
-
     def getK(self, tensor):
         result = int(tensor.numel() * self.alpha)
         assert result > 0, 'Number of transmitted coordinates must be positive'
         return result
  
-
     def compress(self, tensor):
         k = self.getK(tensor)
         absTensor = torch.abs(tensor)
@@ -35,6 +34,22 @@ class TopKCompressor(Compression):
         )
         tensor *= mask
         return tensor
+
+
+class topUnknownCompressor(Compression):
+    def __init__(self, beta):
+        assert alpha > 0, 'Number of transmitted coordinates must be positive'
+        self.beta = beta
+
+    def compress(self, tensor):
+        dim = tensor.numel()
+        bound = beta * tensor.norm() / math.sqrt(dim)
+        mask = torch.abs(tensor) >= bound
+        if mask.sum() == 0:
+            mask = torch.zeros_like(tensor).index_fill_(
+              0, torch.abs(tensor).topk(1).indices, torch.tensor(1)
+            )
+        return gradient * mask
 
 
 compressor = TopKCompressor(0.5)
