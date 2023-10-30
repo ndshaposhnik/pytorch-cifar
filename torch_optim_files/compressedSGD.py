@@ -29,15 +29,15 @@ class TopKCompressor(Compression):
 
     def compress(self, tensor):
         k = self.getK(tensor)
-        stretchedTensor = tensor.clone()
-        stretchedTensor = stretchedTensor.reshape(-1)
-        absTensor = torch.abs(stretchedTensor)
-        mask = torch.zeros_like(stretchedTensor).index_fill_(
+        absTensor = torch.abs(tensor)
+        mask = torch.zeros_like(tensor).index_fill_(
           0, absTensor.topk(k).indices, torch.tensor(1)
         )
-        mask = mask.reshape(tensor.shape)
         tensor *= mask
         return tensor
+
+
+compressor = TopKCompressor(0.5)
 
 
 __all__ = ['SGD', 'sgd']
@@ -71,7 +71,6 @@ class compressedSGD(Optimizer):
 
     def _init_group(self, group, params_with_grad, d_p_list, momentum_buffer_list):
         has_sparse_grad = False
-        compressor = TopKCompressor(0.5)
 
         for p in group['params']:
             if p.grad is not None:
@@ -88,6 +87,24 @@ class compressedSGD(Optimizer):
                 else:
                     momentum_buffer_list.append(state['momentum_buffer'])
 
+        # Move all tensors from d_p_list into one tensor and then compress that tensor.
+        # Then split that tensor back into list of tensors
+        # A problem: different entries of list may have different dimensions and may not be able to fit in one tensor.
+
+        # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
+        # long tensor, compress it, and then rebuild all tensors.
+
+        shapes = list(map(lambda tensor: tensor.shape, d_p_list))
+        numels = list(map(lambda tensor: tensor.numel(), d_p_list))
+        stretched_tensors = list(map(tensor: tensor.reshape(-1), d_p_list))
+        long_tensor = torch.cat(stretched_tensors)
+
+        long_tensor = compressor.compress(long_tensor)
+
+        splitted_tensors = long_tensor.split(numels)
+        for i, tensor in enumerate(splitted_tensors):
+            d_p_list[i] = tensor.reshape(shapes[i])
+        
         return has_sparse_grad
 
 
