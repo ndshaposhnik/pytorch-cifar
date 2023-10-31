@@ -90,9 +90,7 @@ class compressedSGD(Optimizer):
         for p in group['params']:
             if p.grad is not None:
                 params_with_grad.append(p)
-                #d_p_list.append(p.grad)
-                d_p_list.append(compressor.compress(p.grad))
-                                
+                d_p_list.append(p.grad)
                 if p.grad.is_sparse:
                     has_sparse_grad = True
 
@@ -109,6 +107,7 @@ class compressedSGD(Optimizer):
         # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
         # long tensor, compress it, and then rebuild all tensors.
 
+        """
         shapes = list(map(lambda tensor: tensor.shape, d_p_list))
         numels = list(map(lambda tensor: tensor.numel(), d_p_list))
         stretched_tensors = list(map(tensor: tensor.reshape(-1), d_p_list))
@@ -119,6 +118,7 @@ class compressedSGD(Optimizer):
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
             d_p_list[i] = tensor.reshape(shapes[i])
+        """
         
         return has_sparse_grad
 

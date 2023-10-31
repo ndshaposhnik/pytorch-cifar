@@ -113,10 +113,10 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        loss_history.append(train_loss)
-
         progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
+    loss_history.append(train_loss)
 
 
 def test(epoch):
@@ -158,7 +158,5 @@ for epoch in range(start_epoch, start_epoch+200):
     #test(epoch)
     scheduler.step()
 
-import csv
-with open('loss_history', "w") as f:
-    write = csv.writer(f)
-    write.writerow(loss_history)
+with open('loss_history.txt', "w") as f:
+    print(*loss_history, sep='\n', file=f)
