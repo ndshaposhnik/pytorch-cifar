@@ -119,9 +119,9 @@ class compressedSGD(Optimizer):
         d_p_list = []
         for i, tensor in enumerate(splitted_tensors):
             d_p_list.append(tensor.reshape(shapes[i]))
-        
-        assert len(d_p_list) == initial_number_of_param_groups, "Number of param groups is different"
-        
+ 
+        assert len(d_p_list) == initial_number_of_param_groups, "Number of param groups changed"
+ 
         return has_sparse_grad
 
 
