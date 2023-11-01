@@ -118,7 +118,7 @@ class compressedSGD(Optimizer):
         splitted_tensors = long_tensor.split(numels)
         d_p_list = []
         for i, tensor in enumerate(splitted_tensors):
-            d_p_list[i].append(tensor.reshape(shapes[i]))
+            d_p_list.append(tensor.reshape(shapes[i]))
         
         assert len(d_p_list) == initial_number_of_param_groups, "Number of param groups is different"
         
