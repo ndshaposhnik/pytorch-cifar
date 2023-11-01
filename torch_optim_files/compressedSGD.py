@@ -107,7 +107,7 @@ class compressedSGD(Optimizer):
         # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
         # long tensor, compress it, and then rebuild all tensors.
 
-        """
+        initial_number_of_param_groups = len(d_p_list)
         shapes = list(map(lambda tensor: tensor.shape, d_p_list))
         numels = list(map(lambda tensor: tensor.numel(), d_p_list))
         stretched_tensors = list(map(tensor: tensor.reshape(-1), d_p_list))
@@ -116,9 +116,11 @@ class compressedSGD(Optimizer):
         long_tensor = compressor.compress(long_tensor)
 
         splitted_tensors = long_tensor.split(numels)
+        d_p_list = []
         for i, tensor in enumerate(splitted_tensors):
-            d_p_list[i] = tensor.reshape(shapes[i])
-        """
+            d_p_list[i].append(tensor.reshape(shapes[i]))
+        
+        assert len(d_p_list) == initial_number_of_param_groups, "Number of param groups is different"
         
         return has_sparse_grad
 
