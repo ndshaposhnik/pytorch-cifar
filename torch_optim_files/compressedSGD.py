@@ -107,18 +107,16 @@ class compressedSGD(Optimizer):
         # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
         # long tensor, compress it, and then rebuild all tensors.
 
-        d_p_list_copy = list(map(lambda tensor: tensor.clone(), d_p_list))
-        shapes = list(map(lambda tensor: tensor.shape, d_p_list_copy))
-        numels = list(map(lambda tensor: tensor.numel(), d_p_list_copy))
-        stretched_tensors = list(map(lambda tensor: tensor.reshape(-1), d_p_list_copy))
+        shapes = list(map(lambda tensor: tensor.shape, d_p_list))
+        numels = list(map(lambda tensor: tensor.numel(), d_p_list))
+        stretched_tensors = list(map(lambda tensor: tensor.reshape(-1), d_p_list))
         long_tensor = torch.cat(stretched_tensors)
 
         long_tensor = compressor.compress(long_tensor)
 
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
-            d_p_list[i] *= 0
-            d_p_list[i] += tensor.reshape(shapes[i])
+            d_p_list[i].data = tensor.reshape(shapes[i])
  
         return has_sparse_grad
 
