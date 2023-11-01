@@ -110,7 +110,7 @@ class compressedSGD(Optimizer):
         initial_number_of_param_groups = len(d_p_list)
         shapes = list(map(lambda tensor: tensor.shape, d_p_list))
         numels = list(map(lambda tensor: tensor.numel(), d_p_list))
-        stretched_tensors = list(map(tensor: tensor.reshape(-1), d_p_list))
+        stretched_tensors = list(map(lambda tensor: tensor.reshape(-1), d_p_list))
         long_tensor = torch.cat(stretched_tensors)
 
         long_tensor = compressor.compress(long_tensor)
