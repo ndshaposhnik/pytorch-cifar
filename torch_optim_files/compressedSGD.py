@@ -107,7 +107,7 @@ class compressedSGD(Optimizer):
         # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
         # long tensor, compress it, and then rebuild all tensors.
 
-        d_p_list_copy = list(map(lambda tensor: tensor.clone()), d_p_list)
+        d_p_list_copy = list(map(lambda tensor: tensor.clone(), d_p_list))
         shapes = list(map(lambda tensor: tensor.shape, d_p_list_copy))
         numels = list(map(lambda tensor: tensor.numel(), d_p_list_copy))
         stretched_tensors = list(map(lambda tensor: tensor.reshape(-1), d_p_list_copy))
