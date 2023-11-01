@@ -157,6 +157,8 @@ NUMBER_OF_EPOCHS = 300
 
 for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
     train(epoch)
+    with open('loss_history.txt', "w") as f:
+        print(*loss_history, sep='\n', file=f)
     #test(epoch)
     scheduler.step()
 
