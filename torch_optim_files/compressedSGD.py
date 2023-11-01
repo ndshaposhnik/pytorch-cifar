@@ -116,7 +116,7 @@ class compressedSGD(Optimizer):
 
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
-            d_p_list[i] = dp_list[i] * 0 + tensor.reshape(shapes[i])
+            d_p_list[i] = d_p_list[i] * 0 + tensor.reshape(shapes[i])
  
         return has_sparse_grad
 
