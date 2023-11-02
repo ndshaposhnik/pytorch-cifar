@@ -92,6 +92,7 @@ scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=200)
 
 
 loss_history = []
+transmitted_coordinates_history = []
 
 # Training
 def train(epoch):
