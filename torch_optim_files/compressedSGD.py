@@ -2,54 +2,56 @@ import torch
 from torch import Tensor
 from .optimizer import (Optimizer, required, _use_grad_for_differentiable, _default_to_fused_or_foreach,
                         _differentiable_doc, _foreach_doc, _maximize_doc)
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
 import math
 
 class Compression:
-    def compress(self, tensor):
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         pass
 
 
 class NoneCompressor(Compression):
-    def compress(self, tensor):
-        return tensor
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+        return (tensor, tensor.numel())
 
 
 class TopKCompressor(Compression):
-    def __init__(self, alpha):
+    def __init__(self, alpha: float):
         assert alpha > 0, 'Number of transmitted coordinates must be positive'
         self.alpha = alpha
 
-    def getK(self, tensor):
+    def getK(self, tensor: Tensor) -> int:
         result = int(tensor.numel() * self.alpha)
         assert result > 0, 'Number of transmitted coordinates must be positive'
         return result
  
-    def compress(self, tensor):
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         k = self.getK(tensor)
         absTensor = torch.abs(tensor)
         mask = torch.zeros_like(tensor).index_fill_(
           0, absTensor.topk(k).indices, torch.tensor(1)
         )
         tensor *= mask
-        return tensor
+        return (tensor, k)
 
 
 class topUnknownCompressor(Compression):
-    def __init__(self, beta):
-        assert alpha > 0, 'Number of transmitted coordinates must be positive'
+    def __init__(self, beta: float):
+        assert beta > 0, 'Number of transmitted coordinates must be positive'
         self.beta = beta
 
-    def compress(self, tensor):
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         dim = tensor.numel()
         bound = beta * tensor.norm() / math.sqrt(dim)
         mask = torch.abs(tensor) >= bound
-        if mask.sum() == 0:
+        nonzero_coords = mask.sum()
+        if nonzero_coords == 0:
             mask = torch.zeros_like(tensor).index_fill_(
               0, torch.abs(tensor).topk(1).indices, torch.tensor(1)
             )
-        return gradient * mask
+            nonzero_coords = mask.sum()
+        return (gradient * mask, nonzero_coords)
 
 
 compressor = TopKCompressor(0.5)
@@ -112,7 +114,7 @@ class compressedSGD(Optimizer):
         stretched_tensors = list(map(lambda tensor: tensor.data.reshape(-1), d_p_list))
         long_tensor = torch.cat(stretched_tensors)
 
-        long_tensor = compressor.compress(long_tensor)
+        long_tensor, self.last_coordinates_transmitted = compressor.compress(long_tensor)
 
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
@@ -257,15 +259,19 @@ def _multi_tensor_sgd(params: List[Tensor],
     if len(params) == 0:
         return
 
-    grouped_tensors = _group_tensors_by_device_and_dtype([params, grads, momentum_buffer_list], with_indices=True)
-    for device_params, device_grads, device_momentum_buffer_list, indices in grouped_tensors.values():
+    grouped_tensors = Optimizer._group_tensors_by_device_and_dtype([params, grads, momentum_buffer_list], with_indices=True)
+    for ((device_params, device_grads, device_momentum_buffer_list), indices) in grouped_tensors.values():
         device_has_sparse_grad = any(grad.is_sparse for grad in device_grads)
 
         if maximize:
-            device_grads = torch._foreach_neg(tuple(device_grads))  # type: ignore[assignment]
+            device_grads = torch._foreach_neg(device_grads)
 
         if weight_decay != 0:
-            device_grads = torch._foreach_add(device_grads, device_params, alpha=weight_decay)
+            # Re-use the intermediate memory (device_grads) already allocated for maximize
+            if maximize:
+                torch._foreach_add_(device_grads, device_params, alpha=weight_decay)
+            else:
+                device_grads = torch._foreach_add(device_grads, device_params, alpha=weight_decay)
 
         if momentum != 0:
             bufs = []
@@ -304,3 +310,4 @@ def _multi_tensor_sgd(params: List[Tensor],
             # foreach APIs don't support sparse
             for i in range(len(device_params)):
                 device_params[i].add_(device_grads[i], alpha=-lr)
+

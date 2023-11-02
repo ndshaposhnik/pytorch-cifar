@@ -117,6 +117,7 @@ def train(epoch):
                      % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
 
     loss_history.append(train_loss)
+    transmitted_coordinates_history.append(optimizer.last_coordinates_transmitted)
 
 
 def test(epoch):
@@ -159,8 +160,13 @@ for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
     train(epoch)
     with open('loss_history.txt', "w") as f:
         print(*loss_history, sep='\n', file=f)
+    with open('transmitted_coordinates_history.txt', "w") as f:
+        print(*transmitted_coordinates_history, sep='\n', file=f)
     #test(epoch)
     scheduler.step()
 
 with open('loss_history.txt', "w") as f:
     print(*loss_history, sep='\n', file=f)
+
+with open('transmitted_coordinates_history.txt', "w") as f:
+    print(*transmitted_coordinates_history, sep='\n', file=f)
