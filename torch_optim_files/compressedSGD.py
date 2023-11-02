@@ -36,6 +36,25 @@ class TopKCompressor(Compression):
         return (tensor, k)
 
 
+class RandKCompressor(Compression):
+    def __init__(self, alpha: float):
+        assert alpha > 0, 'Number of transmitted coordinates must be positive'
+        self.alpha = alpha
+
+    def getK(self, tensor: Tensor) -> int:
+        result = int(tensor.numel() * self.alpha)
+        assert result > 0, 'Number of transmitted coordinates must be positive'
+        return result
+ 
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+        k = self.getK(tensor)
+        mask = torch.zeros_like(tensor).index_fill_(
+            0, torch.randperm(tensor.numel())[:k], torch.tensor(1)
+        )
+        tensor *= mask
+        return (tensor, k)
+
+
 class topUnknownCompressor(Compression):
     def __init__(self, beta: float):
         assert beta > 0, 'Number of transmitted coordinates must be positive'
@@ -54,7 +73,7 @@ class topUnknownCompressor(Compression):
         return (gradient * mask, nonzero_coords)
 
 
-compressor = TopKCompressor(0.5)
+compressor = RandKCompressor(0.5)
 
 
 __all__ = ['SGD', 'sgd']
