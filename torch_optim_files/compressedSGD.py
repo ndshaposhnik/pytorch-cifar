@@ -49,7 +49,7 @@ class RandKCompressor(Compression):
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         k = self.getK(tensor)
         mask = torch.zeros_like(tensor).index_fill_(
-            0, torch.randperm(tensor.numel())[:k], torch.tensor(1)
+            0, torch.randperm(tensor.numel(), device='cuda:0')[:k], torch.tensor(1)
         )
         tensor *= mask
         return (tensor, k)
@@ -329,4 +329,3 @@ def _multi_tensor_sgd(params: List[Tensor],
             # foreach APIs don't support sparse
             for i in range(len(device_params)):
                 device_params[i].add_(device_grads[i], alpha=-lr)
-
