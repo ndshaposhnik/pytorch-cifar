@@ -73,7 +73,7 @@ class topUnknownCompressor(Compression):
         return (gradient * mask, nonzero_coords)
 
 
-compressor = RandKCompressor(0.5)
+compressor = TopUnknownCompressor()
 
 
 __all__ = ['SGD', 'sgd']
