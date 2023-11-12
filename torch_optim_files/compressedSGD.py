@@ -6,6 +6,15 @@ from typing import List, Optional, Tuple
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
 import math
 
+
+def getTopKMask(tensor: Tensor, k: int) -> Tensor:
+    absTensor = torch.abs(tensor)
+    return torch.zeros_like(tensor).index_fill_(
+        0, absTensor.topk(k).indices, torch.tensor(1)
+    )
+
+
+
 class Compression:
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         pass
@@ -28,11 +37,7 @@ class TopKCompressor(Compression):
  
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         k = self.getK(tensor)
-        absTensor = torch.abs(tensor)
-        mask = torch.zeros_like(tensor).index_fill_(
-          0, absTensor.topk(k).indices, torch.tensor(1)
-        )
-        tensor *= mask
+        tensor *= getTopKMask(tensor, k)
         return (tensor, k)
 
 
@@ -62,7 +67,7 @@ class TopUnknownCompressor(Compression):
 
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         dim = tensor.numel()
-        bound = beta * tensor.norm() / math.sqrt(dim)
+        bound = self.beta * tensor.norm() / math.sqrt(dim)
         mask = torch.abs(tensor) >= bound
         nonzero_coords = mask.sum()
         if nonzero_coords == 0:
@@ -71,6 +76,23 @@ class TopUnknownCompressor(Compression):
             )
             nonzero_coords = mask.sum()
         return (tenso r* mask, nonzero_coords.item())
+
+
+class ReduceProbabilityCompression(Compression):
+    def __init__(self, dim, alpha=0.5, penalty: float = 0.5):
+        self.dim = dim
+        self.penalty = penalty
+        self.probability = torch.new_full(self.dim, 1 / self.dim, dtype=torch.float)
+        self.k = self.dim * alpha
+
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+        mask = getTopKMask(tensor * self.probability, self.k)
+        inv_mask = torch.ones(self.dim, dtype=np.intc) - mask
+        probability = torch.softmax(tensor, dim=0)
+        sumReduced = torch.sum(mask * self.probability * (1 - self.penalty)).item()
+        probability -= mask * self.probability * (1 - self.penalty)
+        probability += inv_mask * sumReduced / (tensor.shape[0] - self.k)
+        return tensor * mask, self.k
 
 
 compressor = TopUnknownCompressor()
