@@ -163,6 +163,8 @@ for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
         print(*loss_history, sep='\n', file=f)
     with open('transmitted_coordinates_history.txt', "w") as f:
         print(*transmitted_coordinates_history, sep='\n', file=f)
+    print(*loss_history)
+    print(*transmitted_coordinates_history)
     #test(epoch)
     scheduler.step()
 

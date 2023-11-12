@@ -55,7 +55,7 @@ class RandKCompressor(Compression):
         return (tensor, k)
 
 
-class topUnknownCompressor(Compression):
+class TopUnknownCompressor(Compression):
     def __init__(self, beta: float):
         assert beta > 0, 'Number of transmitted coordinates must be positive'
         self.beta = beta
@@ -70,7 +70,7 @@ class topUnknownCompressor(Compression):
               0, torch.abs(tensor).topk(1).indices, torch.tensor(1)
             )
             nonzero_coords = mask.sum()
-        return (gradient * mask, nonzero_coords)
+        return (tenso r* mask, nonzero_coords.item())
 
 
 compressor = TopUnknownCompressor()
