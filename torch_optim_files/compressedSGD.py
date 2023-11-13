@@ -96,7 +96,7 @@ class ReduceProbabilityCompression(Compression):
 
 
 class PenaltyCompressor(Compression):
-    def __init__(self, dim, alpha, dropsTo=0.0, step=0.25):
+    def __init__(self, dim, alpha=0.5, dropsTo=0.0, step=0.25):
         self.dim = dim
         self.k = int(self.dim * alpha)
         self.dropsTo = dropsTo
