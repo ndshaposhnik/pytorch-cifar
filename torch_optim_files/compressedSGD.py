@@ -95,6 +95,23 @@ class ReduceProbabilityCompression(Compression):
         return tensor * mask, self.k
 
 
+class PenaltyCompressor(Compression):
+    def __init__(self, dim, alpha, dropsTo=0.0, step=0.25):
+        self.dim = dim
+        self.k = int(self.dim * alpha)
+        self.dropsTo = dropsTo
+        self.step = step
+        self.penalty = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
+
+    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+        mask = getTopKMask(tensor * self.penalty, self.k)
+        self.penalty += self.step * torch.ones_like(self.penalty)
+        self.penalty = torch.minimum(self.penalty, torch.ones_like(self.penalty))
+        inv_mask = torch.ones_like(mask) - mask
+        self.penalty = inv_mask * self.penalty + self.dropsTo * mask
+        return tensor * mask, self.k
+
+
 __all__ = ['SGD', 'sgd']
 
 class compressedSGD(Optimizer):
@@ -116,7 +133,7 @@ class compressedSGD(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super().__init__(params, defaults)
 
-        self.compressor = ReduceProbabilityCompression(dim=15142970)
+        self.compressor = PenaltyCompressor(dim=15142970)
 
 
     def __setstate__(self, state):
