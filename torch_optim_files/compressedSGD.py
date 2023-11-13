@@ -75,27 +75,24 @@ class TopUnknownCompressor(Compression):
               0, torch.abs(tensor).topk(1).indices, torch.tensor(1)
             )
             nonzero_coords = mask.sum()
-        return (tenso r* mask, nonzero_coords.item())
+        return (tensor * mask, nonzero_coords.item())
 
 
 class ReduceProbabilityCompression(Compression):
     def __init__(self, dim, alpha=0.5, penalty: float = 0.5):
         self.dim = dim
         self.penalty = penalty
-        self.probability = torch.new_full(self.dim, 1 / self.dim, dtype=torch.float)
-        self.k = self.dim * alpha
+        self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
+        self.k = int(self.dim * alpha)
 
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         mask = getTopKMask(tensor * self.probability, self.k)
-        inv_mask = torch.ones(self.dim, dtype=np.intc) - mask
+        inv_mask = torch.ones_like(mask) - mask
         probability = torch.softmax(tensor, dim=0)
         sumReduced = torch.sum(mask * self.probability * (1 - self.penalty)).item()
         probability -= mask * self.probability * (1 - self.penalty)
         probability += inv_mask * sumReduced / (tensor.shape[0] - self.k)
         return tensor * mask, self.k
-
-
-compressor = TopUnknownCompressor()
 
 
 __all__ = ['SGD', 'sgd']
@@ -118,6 +115,9 @@ class compressedSGD(Optimizer):
         if nesterov and (momentum <= 0 or dampening != 0):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super().__init__(params, defaults)
+
+        self.compressor = ReduceProbabilityCompression(dim=15142970)
+
 
     def __setstate__(self, state):
         super().__setstate__(state)
@@ -155,7 +155,7 @@ class compressedSGD(Optimizer):
         stretched_tensors = list(map(lambda tensor: tensor.data.reshape(-1), d_p_list))
         long_tensor = torch.cat(stretched_tensors)
 
-        long_tensor, self.last_coordinates_transmitted = compressor.compress(long_tensor)
+        long_tensor, self.last_coordinates_transmitted = self.compressor.compress(long_tensor)
 
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
