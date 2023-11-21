@@ -5,6 +5,7 @@ from .optimizer import (Optimizer, required, _use_grad_for_differentiable, _defa
 from typing import List, Optional, Tuple
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
 import math
+import numpy as np
 
 
 def getTopKMask(tensor: Tensor, k: int) -> Tensor:
@@ -112,6 +113,28 @@ class PenaltyCompressor(Compression):
         return tensor * mask, self.k
 
 
+class MarinaCompressor(Compression):
+    def __init__(self, dim, p = 0.5, compressor=TopKCompression(alpha=0.5)):
+        self.dim = dim
+        self.p = p
+        self.compressor = compressor
+        self.prevG = None
+        self.prevNabla = None
+
+    def compress(self, nabla: Tensor) -> Tuple[Tensor, int]:
+        c = np.random.binomial(size=1, n=1, p=p)[0]
+        if c == 1 or not self.prevG:
+            self.prevG = nabla
+            self.prevNabla = nabla
+            return nabla, self.dim
+        result, k = self.compressor.compress(nabla - self.prevNabla)
+        result += self.prevG
+        self.prevNabla = nabla
+        self.prevG = result
+        return result, k
+
+
+
 __all__ = ['SGD', 'sgd']
 
 class compressedSGD(Optimizer):
@@ -133,7 +156,7 @@ class compressedSGD(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super().__init__(params, defaults)
 
-        self.compressor = PenaltyCompressor(dim=15142970)
+        self.compressor = MarinaCompressor(dim=15142970)
 
 
     def __setstate__(self, state):
@@ -160,13 +183,6 @@ class compressedSGD(Optimizer):
                 else:
                     momentum_buffer_list.append(state['momentum_buffer'])
 
-        # Move all tensors from d_p_list into one tensor and then compress that tensor.
-        # Then split that tensor back into list of tensors
-        # A problem: different entries of list may have different dimensions and may not be able to fit in one tensor.
-
-        # Possible solution: stretch all entries of each tensor into 1-dimtnsional tensor, then append them into one
-        # long tensor, compress it, and then rebuild all tensors.
-
         shapes = list(map(lambda tensor: tensor.shape, d_p_list))
         numels = list(map(lambda tensor: tensor.numel(), d_p_list))
         stretched_tensors = list(map(lambda tensor: tensor.data.reshape(-1), d_p_list))
@@ -177,7 +193,8 @@ class compressedSGD(Optimizer):
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
             d_p_list[i].data = tensor.reshape(shapes[i])
- 
+
+
         return has_sparse_grad
 
 
