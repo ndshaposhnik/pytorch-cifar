@@ -114,7 +114,7 @@ class PenaltyCompressor(Compression):
 
 
 class MarinaCompressor(Compression):
-    def __init__(self, dim, p = 0.5, compressor=TopKCompression(alpha=0.5)):
+    def __init__(self, dim, p = 0.5, compressor=TopKCompressor(alpha=0.5)):
         self.dim = dim
         self.p = p
         self.compressor = compressor
