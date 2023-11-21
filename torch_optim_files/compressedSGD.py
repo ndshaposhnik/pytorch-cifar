@@ -123,7 +123,7 @@ class MarinaCompressor(Compression):
 
     def compress(self, nabla: Tensor) -> Tuple[Tensor, int]:
         c = np.random.binomial(size=1, n=1, p=self.p)[0]
-        if c == 1 or not self.prevG:
+        if c == 1 or self.prevG == None:
             self.prevG = nabla
             self.prevNabla = nabla
             return nabla, self.dim
