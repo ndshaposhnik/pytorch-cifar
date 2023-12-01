@@ -6,6 +6,7 @@ from typing import List, Optional, Tuple
 from torch.utils._foreach_utils import _group_tensors_by_device_and_dtype
 import math
 import numpy as np
+import random
 
 
 def getTopKMask(tensor: Tensor, k: int) -> Tensor:
@@ -27,38 +28,28 @@ class NoneCompressor(Compression):
 
 
 class TopKCompressor(Compression):
-    def __init__(self, alpha: float):
+    def __init__(self, dim: int, alpha: float):
         assert alpha > 0, 'Number of transmitted coordinates must be positive'
-        self.alpha = alpha
+        self.dim = dim
+        self.k = int(alpha * dim)
 
-    def getK(self, tensor: Tensor) -> int:
-        result = int(tensor.numel() * self.alpha)
-        assert result > 0, 'Number of transmitted coordinates must be positive'
-        return result
- 
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
-        k = self.getK(tensor)
-        tensor *= getTopKMask(tensor, k)
-        return (tensor, k)
+        tensor *= getTopKMask(tensor, self.k)
+        return (tensor, self.k)
 
 
 class RandKCompressor(Compression):
-    def __init__(self, alpha: float):
+    def __init__(self, dim: int, alpha: float):
         assert alpha > 0, 'Number of transmitted coordinates must be positive'
-        self.alpha = alpha
+        self.dim = dim
+        self.k = int(alpha * dim)
 
-    def getK(self, tensor: Tensor) -> int:
-        result = int(tensor.numel() * self.alpha)
-        assert result > 0, 'Number of transmitted coordinates must be positive'
-        return result
- 
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
-        k = self.getK(tensor)
         mask = torch.zeros_like(tensor).index_fill_(
             0, torch.randperm(tensor.numel(), device='cuda:0')[:k], torch.tensor(1)
         )
         tensor *= mask
-        return (tensor, k)
+        return (tensor, self.k)
 
 
 class TopUnknownCompressor(Compression):
@@ -133,6 +124,20 @@ class MarinaCompressor(Compression):
         self.prevG = result
         return result, k
 
+
+class RandomizedKCompressor(Compression):
+    def __init__(self, dim, compressor=TopKCompressor(alpha=0.5), minAlpha=0.1, maxAlpha=0.5):
+        self.dim = dim
+        self.compressor = compressor
+        self.minK = int(dim * minAlpha)
+        self.maxK = int(dim * maxAlpha)
+
+    def getK(self):
+        return random.randint(self.minK, self.maxK)
+
+    def compress(self, nabla: Tensor) -> Tuple[Tensor, int]:
+        self.compressor.k = self.getK()
+        return self.compressor.compress(tensor)
 
 
 __all__ = ['SGD', 'sgd']
