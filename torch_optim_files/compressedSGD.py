@@ -16,7 +16,6 @@ def getTopKMask(tensor: Tensor, k: int) -> Tensor:
     )
 
 
-
 class Compression:
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         pass
@@ -125,19 +124,29 @@ class MarinaCompressor(Compression):
         return result, k
 
 
-class RandomizedKCompressor(Compression):
-    def __init__(self, dim, compressor=TopKCompressor(alpha=0.5), minAlpha=0.1, maxAlpha=0.5):
+def change_probability_multiplication(probability: Tensor, mask: Tensor, penalty: float) -> Tensor:
+    assert probability.numel() == mask.numel(), 'probability and shape are not the same shape'
+    n = probability.numel()
+    k = mask.sum().item()
+    assert k > 0, 'empty mask'
+    inv_mask = torch.ones_like(mask) - mask
+    sumReduced = torch.sum(mask * probability * penalty).item()
+    probability -= mask * probability * penalty
+    probability += inv_mask * sumReduced / (n - k)
+    return probability
+
+
+class MultiplicationPenaltyCompressor(BaseCompressor):
+    def __init__(self, dim, alpha, penalty):
         self.dim = dim
-        self.compressor = compressor
-        self.minK = int(dim * minAlpha)
-        self.maxK = int(dim * maxAlpha)
+        self.k = int(self.dim * alpha)
+        self.probability = np.ones(self.dim) / self.dim
+        self.penalty = penalty
 
-    def getK(self):
-        return random.randint(self.minK, self.maxK)
-
-    def compress(self, nabla: Tensor) -> Tuple[Tensor, int]:
-        self.compressor.k = self.getK()
-        return self.compressor.compress(tensor)
+    def compress(self, tensor):
+        mask = getTopKMask(self.probability, self.k)
+        self.probability = change_probability_multiplication(self.probability, mask, self.penalty)
+        return tensor * mask, self.k
 
 
 __all__ = ['SGD', 'sgd']
