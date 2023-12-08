@@ -28,7 +28,9 @@ class compressedSGD(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super().__init__(params, defaults)
 
-        self.compressor = MarinaCompressor(dim=15142970)
+        self.compressor = MultiplicationPenaltyCompressor(
+            dim=15142970, alpha=0.1, penalty=0.8
+        )
 
 
     def __setstate__(self, state):
@@ -257,3 +259,4 @@ def _multi_tensor_sgd(params: List[Tensor],
             # foreach APIs don't support sparse
             for i in range(len(device_params)):
                 device_params[i].add_(device_grads[i], alpha=-lr)
+

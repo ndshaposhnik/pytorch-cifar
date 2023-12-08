@@ -6,6 +6,7 @@ import numpy as np
 import random
 
 from abc import ABC, abstractmethod
+from typing import Tuple
 
 
 def getTopKMask(tensor: Tensor, k: int) -> Tensor:
@@ -121,3 +122,4 @@ class ExpSmoothingCompressor():
         inv_mask = np.ones_like(mask) - mask
         self.penalty = self.beta *self.penalty + (1 - self.beta) * inv_mask
         return tensor * mask, self.k
+
