@@ -2,7 +2,6 @@ import torch
 from torch import Tensor
 
 import math
-import numpy as np
 import random
 
 from abc import ABC, abstractmethod
@@ -37,7 +36,7 @@ def change_probability_subtraction(probability, mask, penalty):
     inv_mask = torch.ones_like(mask) - mask
     tmp_probability = torch.clone(probability)
     tmp_probability -= mask * penalty
-    tmp_probability = np.maximum(tmp_probability, torch.zeros_like(tmp_probability))
+    tmp_probability = torch.maximum(tmp_probability, torch.zeros_like(tmp_probability))
     sumReduced = torch.sum(probability - tmp_probability).item()
     probability = tmp_probability
     probability += inv_mask * sumReduced / (n - k)
@@ -70,18 +69,6 @@ class RandKCompressor(BaseCompressor):
         )
         tensor *= mask
         return (tensor, self.k)
-
-
-def change_probability_multiplication(probability: Tensor, mask: Tensor, penalty: float) -> Tensor:
-    assert probability.numel() == mask.numel(), 'probability and shape are not the same shape'
-    n = probability.numel()
-    k = mask.sum().item()
-    assert k > 0, 'empty mask'
-    inv_mask = torch.ones_like(mask) - mask
-    sumReduced = torch.sum(mask * probability * penalty).item()
-    probability -= mask * probability * penalty
-    probability += inv_mask * sumReduced / (n - k)
-    return probability
 
 
 class MultiplicationPenaltyCompressor():
@@ -119,7 +106,7 @@ class ExpSmoothingCompressor():
 
     def compress(self, tensor):
         mask = getTopKMask(self.penalty, self.k)
-        inv_mask = np.ones_like(mask) - mask
+        inv_mask = torch.ones_like(mask) - mask
         self.penalty = self.beta *self.penalty + (1 - self.beta) * inv_mask
         return tensor * mask, self.k
 
