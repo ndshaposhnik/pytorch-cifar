@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from torch.utils.data import Dataset, DataLoader
 import sklearn.datasets
@@ -10,10 +11,10 @@ def _normalize_dataframe(df):
 class LibSVMDataset(Dataset):
     def __init__(self, svm_file, normalize=True):
         X, y = sklearn.datasets.load_svmlight_file(svm_file)
+        y -= np.ones_like(y)
         X = X.toarray()
         if normalize:
             X = _normalize_dataframe(X)
-        X = pd.DataFrame(X)
         self.data = X
         self.labels = y
 
