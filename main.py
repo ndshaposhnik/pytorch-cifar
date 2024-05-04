@@ -66,7 +66,7 @@ optimizer = optim.compressedSGD(model.parameters(), dim=dim, lr=args.lr,
                       momentum=0.9, weight_decay=5e-4)
 #optimizer = optim.SGD(model.parameters(), lr=args.lr,
 #                      momentum=0.9, weight_decay=5e-4)
-scheduler = torch.optim.lr_scheduler.PolinomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
+scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
 
 loss_history = []
