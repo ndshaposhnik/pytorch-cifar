@@ -75,7 +75,8 @@ class MultiplicationPenaltyCompressor():
     def __init__(self, dim, alpha, penalty):
         self.dim = dim
         self.k = int(self.dim * alpha)
-        self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
+        # self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
+        self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cpu')
         self.penalty = penalty
 
     def compress(self, tensor):

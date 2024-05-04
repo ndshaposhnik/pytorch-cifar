@@ -10,19 +10,29 @@ import torchvision.transforms as transforms
 
 import os
 import argparse
+import tqdm
 
 from models import *
 from utils import progress_bar
 from mushroom_dataset import LibSVMDataset
 
 
-def train(model, trainloader, epoch):
+model = None
+trainloader = None
+optimizer = None
+device = None
+criterion = None
+    
+
+def train(epoch):
+    global model, trainloader, optimizer, device, criterion
+    global loss_history, transmitted_coordinates_history
     print('\nEpoch: %d' % epoch)
     model.train()
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx, (inputs, targets) in enumerate(trainloader):
+    for batch_idx, (inputs, targets) in tqdm.tqdm(enumerate(trainloader)):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
@@ -44,6 +54,9 @@ def train(model, trainloader, epoch):
 
 
 def main():
+    global model, trainloader, optimizer, device, criterion
+    global loss_history, transmitted_coordinates_history
+
     parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
     parser.add_argument('--resume', '-r', action='store_true',
@@ -57,7 +70,7 @@ def main():
     print('==> Preparing data..')
     trainset = LibSVMDataset(svm_file='mushrooms.libxvm')
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=64, shuffle=True, num_workers=2)
+        trainset, batch_size=64, shuffle=True, num_workers=1)
 
     N_FEATURES = 112
     N_CLASSES = 2
@@ -92,16 +105,13 @@ def main():
     transmitted_coordinates_history = []
 
     for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
-        train(model, trainloader, epoch)
+        train(epoch)
         with open('loss_history.txt', "w") as f:
             print(*loss_history, sep='\n', file=f)
         with open('transmitted_coordinates_history.txt', "w") as f:
             print(*transmitted_coordinates_history, sep='\n', file=f)
-        print(*loss_history)
-        print(*transmitted_coordinates_history)
-        # test(epoch)
-        if loss_history[-1] < 0.5:
-          break
+        # print(*loss_history)
+        # print(*transmitted_coordinates_history)
         scheduler.step()
 
     with open('loss_history.txt', "w") as f:
