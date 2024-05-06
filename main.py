@@ -56,15 +56,23 @@ def main():
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
     print('==> Preparing data..')
-    trainset = base_setup_data()
-    trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=64, shuffle=True, num_workers=1)
 
-    N_FEATURES = 112
-    N_CLASSES = 2
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
+
+    trainset = torchvision.datasets.CIFAR10(
+        root='./data', train=True, download=True, transform=transform_train)
+    trainloader = torch.utils.data.DataLoader(
+        trainset, batch_size=128, shuffle=True, num_workers=2)
+
 
     print('==> Building model..')
-    model = LogisticRegression(n_inputs=N_FEATURES, n_outputs=N_CLASSES)
+    # model = ToyModel()
+    model = SimpleDLA()
     model = model.to(device)
     if device == 'cuda':
         model = torch.nn.DataParallel(model)
@@ -86,8 +94,6 @@ def main():
     for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
         train(epoch)
         scheduler.step()
-        if len(loss_history) > 2 and (loss_history[-1] - loss_history[-2]) / loss_history[-2] < 0.01:
-            break
 
     history_path = "exps/" + compressor
     for i in range(100): # Find first unused number
