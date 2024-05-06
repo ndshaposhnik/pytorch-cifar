@@ -8,6 +8,14 @@ from abc import ABC, abstractmethod
 from typing import Tuple
 
 
+def get_device(device: str):
+    if device == 'cuda':
+        return 'cuda:0'
+    elif device == 'cpu':
+        return 'cpu'
+    assert False, f'Unknown device: {device}'
+
+
 def getTopKMask(tensor: Tensor, k: int) -> Tensor:
     absTensor = torch.abs(tensor)
     return torch.zeros_like(tensor).index_fill_(
@@ -44,8 +52,8 @@ def change_probability_subtraction(probability, mask, penalty):
 
 
 class BaseCompressor(ABC):
-    def __init__(dim: int):
-        pass
+    def __init__(self, dim: int):
+        self.dim = dim
 
     @abstractmethod
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
@@ -53,30 +61,39 @@ class BaseCompressor(ABC):
 
 
 class NoneCompressor(BaseCompressor):
+    def __init__(self, dim: int, device: str):
+        self.dim = dim
+        self.device = device
+
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         return (tensor, tensor.numel())
 
 
 class RandKCompressor(BaseCompressor):
-    def __init__(self, dim: int, alpha: float):
+    def __init__(self, dim: int, alpha: float, device: str):
         assert alpha > 0, 'Number of transmitted coordinates must be positive'
         self.dim = dim
         self.k = int(alpha * dim)
+        self.device = device
 
     def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
         mask = torch.zeros_like(tensor).index_fill_(
-            0, torch.randperm(tensor.numel(), device='cuda:0')[:k], torch.tensor(1)
+            0, 
+            torch.randperm(tensor.numel(), device=get_device(self.device))[:self.k],
+            torch.tensor(1)
         )
         tensor *= mask
         return (tensor, self.k)
 
 
-class MultiplicationPenaltyCompressor():
-    def __init__(self, dim, alpha, penalty):
+class MultCompressor():
+    def __init__(self, dim: int, alpha: float, penalty: float, device: str):
         self.dim = dim
         self.k = int(self.dim * alpha)
-        # self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
-        self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cpu')
+        self.device = device
+        self.probability = torch.full(
+            (self.dim,), 1 / self.dim, dtype=torch.float, device=get_device(self.device)
+        )
         self.penalty = penalty
 
     def compress(self, tensor):
@@ -85,11 +102,14 @@ class MultiplicationPenaltyCompressor():
         return tensor * mask, self.k
 
 
-class SubtractionPenaltyCompressor():
-    def __init__(self, dim, alpha, penalty):
+class SubtrCompressor():
+    def __init__(self, dim: int, alpha: float, penalty: float, device: str):
         self.dim = dim
         self.k = int(self.dim * alpha)
-        self.probability = torch.full((self.dim,), 1 / self.dim, dtype=torch.float, device='cuda:0')
+        self.device = device
+        self.probability = torch.full(
+            (self.dim,), 1 / self.dim, dtype=torch.float, device=get_device(self.device)
+        )
         self.penalty = penalty
 
     def compress(self, tensor):
@@ -98,11 +118,14 @@ class SubtractionPenaltyCompressor():
         return tensor * mask, self.k
 
 
-class ExpSmoothingCompressor():
-    def __init__(self, dim, alpha, beta):
+class ExpCompressor():
+    def __init__(self, dim: int, alpha: float, beta: float, device: str):
         self.dim = dim
         self.k = int(self.dim * alpha)
-        self.penalty= torch.zeros(self.dim, dtype=torch.float, device='cuda:0')
+        self.device = device
+        self.penalty= torch.zeros(
+            self.dim, dtype=torch.float, device=get_device(self.device)
+        )
         self.beta = beta
 
     def compress(self, tensor):

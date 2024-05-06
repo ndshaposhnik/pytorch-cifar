@@ -10,7 +10,7 @@ from .markov_compressors import *
 __all__ = ['SGD', 'sgd']
 
 class compressedSGD(Optimizer):
-    def __init__(self, params, dim, lr=required, momentum=0, dampening=0,
+    def __init__(self, params, dim, compressor, device, lr=required, momentum=0, dampening=0,
                  weight_decay=0, nesterov=False, *, maximize: bool = False, foreach: Optional[bool] = None,
                  differentiable: bool = False):
         if lr is not required and lr < 0.0:
@@ -28,9 +28,12 @@ class compressedSGD(Optimizer):
             raise ValueError("Nesterov momentum requires a momentum and zero dampening")
         super().__init__(params, defaults)
 
-        self.compressor = MultiplicationPenaltyCompressor(
-            dim=dim, alpha=0.1, penalty=0.8
-        )
+        if compressor == 'None':
+            self.compressor = NoneCompressor(dim=dim, device=device)
+        elif compressor == 'RandK':
+            self.compressor = RandKCompressor(dim=dim, alpha=0.1, device=device)
+        elif compressor == 'Mult':
+            self.compressor = MultCompressor(dim=dim, alpha=0.1, penalty=0.2, device=device)
 
 
     def __setstate__(self, state):

@@ -17,3 +17,4 @@ from .regnet import *
 from .dla_simple import *
 from .dla import *
 from .log_regression import *
+from .toy import *

@@ -9,30 +9,26 @@ import torchvision
 import torchvision.transforms as transforms
 
 import os
-import argparse
 import tqdm
 
 from models import *
 from utils import progress_bar
-from mushroom_dataset import LibSVMDataset
+from data.mushroom_dataset import LibSVMDataset
+from data.mnist import base_setup_data
 
 
-model = None
-trainloader = None
-optimizer = None
-device = None
-criterion = None
+device = 'cuda' if torch.cuda.is_available() else 'cpu'
     
 
 def train(epoch):
-    global model, trainloader, optimizer, device, criterion
+    global model, trainloader, optimizer, criterion
     global loss_history, transmitted_coordinates_history
     print('\nEpoch: %d' % epoch)
     model.train()
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx, (inputs, targets) in tqdm.tqdm(enumerate(trainloader)):
+    for batch_idx, (inputs, targets) in enumerate(trainloader):
         inputs, targets = inputs.to(device), targets.to(device)
         optimizer.zero_grad()
         outputs = model(inputs)
@@ -52,23 +48,15 @@ def train(epoch):
     transmitted_coordinates_history.append(optimizer.last_coordinates_transmitted)
 
 
-
 def main():
-    global model, trainloader, optimizer, device, criterion
+    global model, trainloader, optimizer, criterion
     global loss_history, transmitted_coordinates_history
 
-    parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
-    parser.add_argument('--resume', '-r', action='store_true',
-                        help='resume from checkpoint')
-    args = parser.parse_args()
-
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
     best_acc = 0  # best test accuracy
     start_epoch = 0  # start from epoch 0 or last checkpoint epoch
 
     print('==> Preparing data..')
-    trainset = LibSVMDataset(svm_file='mushrooms.libxvm')
+    trainset = base_setup_data()
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=64, shuffle=True, num_workers=1)
 
@@ -82,42 +70,40 @@ def main():
         model = torch.nn.DataParallel(model)
         cudnn.benchmark = True
 
+    NUMBER_OF_EPOCHS = 300
     dim = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-    NUMBER_OF_EPOCHS = 300
-
-    if args.resume:
-        # Load checkpoint.
-        print('==> Resuming from checkpoint..')
-        assert os.path.isdir('checkpoint'), 'Error: no checkpoint directory found!'
-        checkpoint = torch.load('./checkpoint/ckpt.pth')
-        model.load_state_dict(checkpoint['model'])
-        best_acc = checkpoint['acc']
-        start_epoch = checkpoint['epoch']
-
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.compressedSGD(model.parameters(), dim=dim, lr=args.lr,
-                          momentum=0.9, weight_decay=5e-4)
-    scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
+    compressor = 'Mult'
+    optimizer = optim.compressedSGD(model.parameters(), dim=dim, compressor=compressor, device=device,
+                                    lr=0.1, momentum=0.9, weight_decay=5e-4)
+    scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
     loss_history = []
     transmitted_coordinates_history = []
 
     for epoch in range(start_epoch, start_epoch+NUMBER_OF_EPOCHS):
         train(epoch)
-        with open('loss_history.txt', "w") as f:
-            print(*loss_history, sep='\n', file=f)
-        with open('transmitted_coordinates_history.txt', "w") as f:
-            print(*transmitted_coordinates_history, sep='\n', file=f)
-        # print(*loss_history)
-        # print(*transmitted_coordinates_history)
         scheduler.step()
+        if len(loss_history) > 2 and (loss_history[-1] - loss_history[-2]) / loss_history[-2] < 0.01:
+            break
 
-    with open('loss_history.txt', "w") as f:
+    history_path = "exps/" + compressor
+    for i in range(100): # Find first unused number
+        end = ''
+        if i > 0:
+            end = f'_{i}'
+        if not os.path.isdir(history_path + end):
+            history_path += end
+            break
+
+    os.mkdir(history_path)
+
+    with open(os.path.join(history_path, 'loss.txt'), "w") as f:
         print(*loss_history, sep='\n', file=f)
 
-    with open('transmitted_coordinates_history.txt', "w") as f:
+    with open(os.path.join(history_path, 'coords.txt'), "w") as f:
         print(*transmitted_coordinates_history, sep='\n', file=f)
 
 
