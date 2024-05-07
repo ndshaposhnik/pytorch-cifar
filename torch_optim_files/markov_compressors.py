@@ -134,3 +134,31 @@ class ExpCompressor():
         self.penalty = self.beta *self.penalty + (1 - self.beta) * inv_mask
         return tensor * mask, self.k
 
+
+class BanLastMCompressor(BaseCompressor):
+    def __init__(self, dim, alpha, M, device):
+        super().__init__(dim)
+        self.k = int(self.dim * alpha)
+        self.M = M
+        self.device = device
+        self.history = torch.zeros(self.dim, dtype=torch.int, device=self.device)
+
+    def _get_mask(self):
+        zeros = (self.history == 0).nonzero().flatten()
+        assert len(zeros) >= self.k
+        indices = torch.randperm(len(zeros))[:self.k]
+        assert len(indices) == self.k
+        return torch.zeros_like(self.history).index_fill_(
+            0, zeros[indices], torch.tensor(1),
+        )
+
+    def _update_history(self, mask):
+        self.history -= torch.ones_like(self.history)
+        self.history = torch.maximum(self.history, torch.zeros_like(self.history))
+        self.history += mask * self.M
+
+    def compress(self, tensor):
+        mask = self._get_mask()
+        self._update_history(mask)
+        assert len(mask.nonzero()) > 0
+        return tensor * mask, self.k

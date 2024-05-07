@@ -41,8 +41,7 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
-                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f' % train_loss)
 
     loss_history.append(train_loss)
     transmitted_coordinates_history.append(optimizer.last_coordinates_transmitted)
@@ -57,22 +56,21 @@ def main():
 
     print('==> Preparing data..')
 
-    transform_train = transforms.Compose([
-        transforms.RandomCrop(32, padding=4),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+    # transform_train = transforms.Compose([
+    #     transforms.RandomCrop(32, padding=4),
+    #     transforms.RandomHorizontalFlip(),
+    #     transforms.ToTensor(),
+    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    # ])
 
-    trainset = torchvision.datasets.CIFAR10(
-        root='./data', train=True, download=True, transform=transform_train)
+    trainset = torchvision.datasets.MNIST(
+        root='./data', train=True, download=True, transform=torchvision.transforms.ToTensor())
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=128, shuffle=True, num_workers=2)
 
 
     print('==> Building model..')
-    # model = ToyModel()
-    model = SimpleDLA()
+    model = ToyModel()
     model = model.to(device)
     if device == 'cuda':
         model = torch.nn.DataParallel(model)
@@ -83,7 +81,7 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    compressor = 'Mult'
+    compressor = 'Subtr'
     optimizer = optim.compressedSGD(model.parameters(), dim=dim, compressor=compressor, device=device,
                                     lr=0.1, momentum=0.9, weight_decay=5e-4)
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)

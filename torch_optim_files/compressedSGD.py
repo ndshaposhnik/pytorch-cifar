@@ -34,6 +34,12 @@ class compressedSGD(Optimizer):
             self.compressor = RandKCompressor(dim=dim, alpha=0.1, device=device)
         elif compressor == 'Mult':
             self.compressor = MultCompressor(dim=dim, alpha=0.1, penalty=0.2, device=device)
+        elif compressor == 'Subtr':
+            self.compressor = SubtrCompressor(dim=dim, alpha=0.1, penalty=0.01, device=device)
+        elif compressor == 'Exp':
+            self.compressor = ExpCompressor(dim=dim, alpha=0.1, beta=0.2, device=device)
+        elif compressor == 'BanLastM':
+            self.compressor = BanLastMCompressor(dim=dim, alpha=0.1, M=9, device=device)
 
 
     def __setstate__(self, state):
