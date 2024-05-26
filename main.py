@@ -13,7 +13,7 @@ import tqdm
 
 from models import *
 from utils import progress_bar
-from data.mushroom_dataset import LibSVMDataset
+from data.mushrooms import Mushrooms
 from data.mnist import base_setup_data
 
 
@@ -56,21 +56,12 @@ def main():
 
     print('==> Preparing data..')
 
-    # transform_train = transforms.Compose([
-    #     transforms.RandomCrop(32, padding=4),
-    #     transforms.RandomHorizontalFlip(),
-    #     transforms.ToTensor(),
-    #     transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    # ])
-
-    trainset = torchvision.datasets.MNIST(
-        root='./data', train=True, download=True, transform=torchvision.transforms.ToTensor())
+    trainset = Mushrooms()
     trainloader = torch.utils.data.DataLoader(
         trainset, batch_size=128, shuffle=True, num_workers=2)
 
-
     print('==> Building model..')
-    model = ToyModel()
+    model = ToyModel(init_dim=112, num_classes=2)
     model = model.to(device)
     if device == 'cuda':
         model = torch.nn.DataParallel(model)
@@ -81,9 +72,9 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    compressor = 'Subtr'
+    compressor = 'BanLastM'
     optimizer = optim.compressedSGD(model.parameters(), dim=dim, compressor=compressor, device=device,
-                                    lr=0.1, momentum=0.9, weight_decay=5e-4)
+                                    lr=0.01, momentum=0.9, weight_decay=5e-4)
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
     loss_history = []

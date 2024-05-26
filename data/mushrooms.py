@@ -10,9 +10,9 @@ def _normalize_dataframe(df):
     return (df - df.mean()) / df.std()
 
 
-class LibSVMDataset(Dataset):
-    def __init__(self, svm_file, normalize=True):
-        X, y = sklearn.datasets.load_svmlight_file(svm_file)
+class Mushrooms(Dataset):
+    def __init__(self):
+        X, y = sklearn.datasets.load_svmlight_file('data/mushrooms.libxvm')
 
         self.data = torch.from_numpy(X.toarray()).float()
         self.labels = torch.from_numpy(y).long()
