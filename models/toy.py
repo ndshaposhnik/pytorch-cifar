@@ -14,11 +14,14 @@ class ToyModel(nn.Module):
 
 
 class LogisticRegression(nn.Module):
-    def __init__(self, init_dim, num_classes=10):
+    def __init__(self, init_dim, num_classes):
         super(LogisticRegression, self).__init__()
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(init_dim, num_classes)
-        self.soft_max = nn.Softmax()
+        self.soft_max = nn.Softmax(dim=1)
 
     def forward(self, x):
-        return self.soft_max(self.linear(self.flatten(x)))
+        x = self.flatten(x)
+        x = self.linear(x)
+        x = self.soft_max(x)
+        return x
