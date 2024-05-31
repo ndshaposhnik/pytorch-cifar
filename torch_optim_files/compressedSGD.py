@@ -39,7 +39,7 @@ class compressedSGD(Optimizer):
         elif compressor == 'Exp':
             self.compressor = ExpCompressor(dim=dim, alpha=0.1, beta=0.2, device=device)
         elif compressor == 'BanLastM':
-            self.compressor = BanLastMCompressor(dim=dim, alpha=0.1, M=9, device=device)
+            self.compressor = BanLastMCompressor(dim=dim, alpha=0.1, M=8, device=device)
 
 
     def __setstate__(self, state):
@@ -76,7 +76,6 @@ class compressedSGD(Optimizer):
         splitted_tensors = long_tensor.split(numels)
         for i, tensor in enumerate(splitted_tensors):
             d_p_list[i].data = tensor.reshape(shapes[i])
-
 
         return has_sparse_grad
 

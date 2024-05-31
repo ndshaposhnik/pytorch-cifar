@@ -1,7 +1,7 @@
 from torch import nn
 
 class ToyModel(nn.Module):
-    def __init__(self, init_dim=28*28, num_classes=10):
+    def __init__(self, init_dim, num_classes=10):
         super(ToyModel, self).__init__()
         self.flatten = nn.Flatten()
         self.net1 = nn.Linear(init_dim, 20)
@@ -11,3 +11,14 @@ class ToyModel(nn.Module):
 
     def forward(self, x):
         return self.net3(self.relu(self.net2(self.relu(self.net1(self.flatten(x))))))
+
+
+class LogisticRegression(nn.Module):
+    def __init__(self, init_dim, num_classes=10):
+        super(LogisticRegression, self).__init__()
+        self.flatten = nn.Flatten()
+        self.linear = nn.Linear(init_dim, num_classes)
+        self.soft_max = nn.Softmax()
+
+    def forward(self, x):
+        return self.soft_max(self.linear(self.flatten(x)))
