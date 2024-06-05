@@ -15,6 +15,8 @@ class Mushrooms(Dataset):
         X, y = sklearn.datasets.load_svmlight_file('data/mushrooms.libxvm')
 
         self.data = torch.from_numpy(X.toarray()).float()
+        self.data = _normalize_dataframe(self.data)
+
         self.labels = torch.from_numpy(y).long()
         self.labels -= torch.ones_like(self.labels)
 

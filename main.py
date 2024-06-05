@@ -44,8 +44,6 @@ def parallel_train(epoch):
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            progress_bar(batch_idx, len(trainloader), f'Worker #{worker+1}, Loss: %.3f' % train_loss)
-
         optimizer.step()
 
     loss_history.append(train_loss)
@@ -53,7 +51,7 @@ def parallel_train(epoch):
 
 
 def train(epoch):
-    global model, trainloader, optimizer, criterion
+    global model, trainloader, optimizer, criterion, dim
     global loss_history, transmitted_coordinates_history
     print('\nEpoch: %d' % epoch)
     train_loss = 0
@@ -72,14 +70,20 @@ def train(epoch):
         total += targets.size(0)
         correct += predicted.eq(targets).sum().item()
 
-        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f' % train_loss)
+        _, predicted = outputs.max(1)
+        total += targets.size(0)
+        correct += predicted.eq(targets).sum().item()
+
+        progress_bar(batch_idx, len(trainloader), 'Loss: %.3f | Acc: %.3f%% (%d/%d)'
+                     % (train_loss/(batch_idx+1), 100.*correct/total, correct, total))
+
 
     loss_history.append(train_loss)
-    transmitted_coordinates_history.append(optimizer.last_coordinates_transmitted)
+    transmitted_coordinates_history.append(dim)
 
 
 def main():
-    global model, trainloader, optimizer, criterion
+    global model, trainloader, optimizer, criterion, dim
     global loss_history, transmitted_coordinates_history
 
     best_acc = 0  # best test accuracy
@@ -107,8 +111,10 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
 
-    optimizer = optim.compressedSGD(model.parameters(), dim=dim, compressor=compressor, device=device,
-                                    lr=0.5, weight_decay=0.05)
+    # optimizer = optim.compressedSGD(model.parameters(), dim=dim, compressor=compressor, device=device,
+    #                                 lr=0.5, weight_decay=0.05)
+    optimizer = optim.SGD(model.parameters(), lr=0.05, weight_decay=0.05)
+
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
     loss_history = []

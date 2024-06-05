@@ -1,3 +1,4 @@
+import torch
 from torch import nn
 
 class ToyModel(nn.Module):
@@ -18,7 +19,7 @@ class LogisticRegression(nn.Module):
         super(LogisticRegression, self).__init__()
         self.flatten = nn.Flatten()
         self.linear = nn.Linear(init_dim, num_classes)
-        self.soft_max = nn.Softmax()
+        self.soft_max = nn.Softmax(dim=1)
 
     def forward(self, x):
-        return self.soft_max(self.linear(self.flatten(x)))
+        return torch.sigmoid(self.linear(x))
