@@ -5,7 +5,20 @@ import math
 import random
 
 from abc import ABC, abstractmethod
-from typing import Tuple
+from typing import Tuple, List
+
+
+def apply_compressor(compressor, tensors: List[Tensor]): # функция меняет второй аргумент
+    shapes = [tensor.shape for tensor in tensors]
+    numels = [tensor.numel() for tensor in tensors]
+    stretched_tensors = [tensor.data.reshape(-1) for tensor in tensors]
+    long_tensor = torch.cat(stretched_tensors)
+
+    long_tensor = compressor.compress(long_tensor)
+
+    splitted_tensors = long_tensor.split(numels)
+    for i, tensor in enumerate(splitted_tensors):
+        tensors[i].data = tensor.reshape(shapes[i])
 
 
 def get_device(device: str):
@@ -56,7 +69,7 @@ class BaseCompressor(ABC):
         self.dim = dim
 
     @abstractmethod
-    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+    def compress(self, tensor: Tensor) -> Tensor:
         pass
 
 
@@ -64,9 +77,13 @@ class NoneCompressor(BaseCompressor):
     def __init__(self, dim: int, device: str):
         self.dim = dim
         self.device = device
+        self.k = dim
 
-    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
-        return (tensor, tensor.numel())
+    def __str__(self):
+        return 'None'
+
+    def compress(self, tensor: Tensor) -> Tensor:
+        return tensor
 
 
 class RandKCompressor(BaseCompressor):
@@ -76,14 +93,17 @@ class RandKCompressor(BaseCompressor):
         self.k = int(alpha * dim)
         self.device = device
 
-    def compress(self, tensor: Tensor) -> Tuple[Tensor, int]:
+    def __str__(self):
+        return 'RandK'
+
+    def compress(self, tensor: Tensor) -> Tensor:
         mask = torch.zeros_like(tensor).index_fill_(
             0, 
             torch.randperm(tensor.numel(), device=get_device(self.device))[:self.k],
             torch.tensor(1)
         )
         tensor *= mask
-        return (tensor, self.k)
+        return tensor
 
 
 class MultCompressor():
@@ -96,10 +116,13 @@ class MultCompressor():
         )
         self.penalty = penalty
 
+    def __str__(self):
+        return 'Mult'
+
     def compress(self, tensor):
         mask = getTopKMask(self.probability, self.k)
         self.probability = change_probability_multiplication(self.probability, mask, self.penalty)
-        return tensor * mask, self.k
+        return tensor * mask
 
 
 class SubtrCompressor():
@@ -112,10 +135,13 @@ class SubtrCompressor():
         )
         self.penalty = penalty
 
+    def __str__(self):
+        return 'Subtr'
+
     def compress(self, tensor):
         mask = getTopKMask(self.probability, self.k)
         self.probability = change_probability_subtraction(self.probability, mask, self.penalty)
-        return tensor * mask, self.k
+        return tensor * mask
 
 
 class ExpCompressor():
@@ -128,11 +154,14 @@ class ExpCompressor():
         )
         self.beta = beta
 
+    def __str__(self):
+        return 'Exp'
+
     def compress(self, tensor):
         mask = getTopKMask(self.penalty, self.k)
         inv_mask = torch.ones_like(mask) - mask
         self.penalty = self.beta *self.penalty + (1 - self.beta) * inv_mask
-        return tensor * mask, self.k
+        return tensor * mask
 
 
 class BanLastMCompressor(BaseCompressor):
@@ -142,6 +171,9 @@ class BanLastMCompressor(BaseCompressor):
         self.M = M
         self.device = device
         self.history = torch.zeros(self.dim, dtype=torch.int, device=self.device)
+
+    def __str__(self):
+        return 'BanLastM'
 
     def _get_mask(self):
         zeros = (self.history == 0).nonzero().flatten()
@@ -161,4 +193,4 @@ class BanLastMCompressor(BaseCompressor):
         mask = self._get_mask()
         self._update_history(mask)
         assert len(mask.nonzero()) > 0
-        return tensor * mask, self.k
+        return tensor * mask

@@ -1,9 +1,10 @@
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset, DataLoader, random_split
 
 import numpy as np
 import pandas as pd
 import sklearn.datasets
+from typing import List
 
 
 def _normalize_dataframe(df):
@@ -24,3 +25,6 @@ class Mushrooms(Dataset):
     def __getitem__(self, idx):
         return self.data[idx], self.labels[idx]
 
+def split_dataset(dataset: Dataset, n: int) -> List[Dataset]:
+    lengths = [1 / n] * n
+    return random_split(dataset, lengths)
