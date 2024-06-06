@@ -35,6 +35,12 @@ def getTopKMask(tensor: Tensor, k: int) -> Tensor:
         0, absTensor.topk(k).indices, torch.tensor(1)
     )
 
+def getRandomMask(tensor: Tensor, k: int) -> Tensor:
+    idxs = torch.multinomial(tensor, k, replacement=False)
+    return torch.zeros_like(tensor).index_fill_(
+        0, idxs, torch.tensor(1)
+    )
+
 
 def change_probability_multiplication(probability: Tensor, mask: Tensor, penalty: float) -> Tensor:
     assert probability.numel() == mask.numel(), 'probability and shape are not the same shape'
@@ -42,8 +48,8 @@ def change_probability_multiplication(probability: Tensor, mask: Tensor, penalty
     k = mask.sum().item()
     assert k > 0, 'empty mask'
     inv_mask = torch.ones_like(mask) - mask
-    sumReduced = torch.sum(mask * probability * penalty).item()
-    probability -= mask * probability * penalty
+    sumReduced = torch.sum(mask * probability * (1 - penalty)).item()
+    probability -= mask * probability * (1 - penalty)
     probability += inv_mask * sumReduced / (n - k)
     return probability
 
@@ -103,18 +109,19 @@ class RandKCompressor(BaseCompressor):
             torch.tensor(1)
         )
         tensor *= mask
-        return tensor
+        return tensor * self.dim / self.k
 
 
 class MultCompressor():
-    def __init__(self, dim: int, alpha: float, penalty: float, device: str):
+    def __init__(self, dim: int, alpha: float, penalty: float, device: str, isDeterministic=False):
         self.dim = dim
         self.k = int(self.dim * alpha)
         self.device = device
         self.probability = torch.full(
             (self.dim,), 1 / self.dim, dtype=torch.float, device=get_device(self.device)
         )
-        self.penalty = penalty
+        self.penalty = penalty  # p -> p * self.penalty 
+        self.isDeterministic = isDeterministic
 
     def __str__(self):
         return 'Mult'
@@ -122,11 +129,11 @@ class MultCompressor():
     def compress(self, tensor):
         mask = getTopKMask(self.probability, self.k)
         self.probability = change_probability_multiplication(self.probability, mask, self.penalty)
-        return tensor * mask
+        return tensor * mask * self.dim / self.k
 
 
 class SubtrCompressor():
-    def __init__(self, dim: int, alpha: float, penalty: float, device: str):
+    def __init__(self, dim: int, alpha: float, penalty: float, device: str, isDeterministic=False):
         self.dim = dim
         self.k = int(self.dim * alpha)
         self.device = device
@@ -134,18 +141,23 @@ class SubtrCompressor():
             (self.dim,), 1 / self.dim, dtype=torch.float, device=get_device(self.device)
         )
         self.penalty = penalty
+        self.isDeterministic = isDeterministic
 
     def __str__(self):
         return 'Subtr'
 
     def compress(self, tensor):
-        mask = getTopKMask(self.probability, self.k)
+        if self.isDeterministic:
+            mask = getTopKMask(self.probability, self.k)
+        else:
+            mask = getRandomMask(self.probability, self.k)
+
         self.probability = change_probability_subtraction(self.probability, mask, self.penalty)
-        return tensor * mask
+        return tensor * mask * self.dim / self.k
 
 
 class ExpCompressor():
-    def __init__(self, dim: int, alpha: float, beta: float, device: str):
+    def __init__(self, dim: int, alpha: float, beta: float, device: str, isDeterministic=False):
         self.dim = dim
         self.k = int(self.dim * alpha)
         self.device = device
@@ -153,15 +165,20 @@ class ExpCompressor():
             self.dim, dtype=torch.float, device=get_device(self.device)
         )
         self.beta = beta
+        self.isDeterministic = isDeterministic
 
     def __str__(self):
         return 'Exp'
 
     def compress(self, tensor):
-        mask = getTopKMask(self.penalty, self.k)
+        if self.isDeterministic:
+            mask = getTopKMask(self.probability, self.k)
+        else:
+            mask = getRandomMask(self.probability, self.k)
+
         inv_mask = torch.ones_like(mask) - mask
-        self.penalty = self.beta *self.penalty + (1 - self.beta) * inv_mask
-        return tensor * mask
+        self.penalty = self.beta * self.penalty + (1 - self.beta) * inv_mask
+        return tensor * mask * self.dim / self.k
 
 
 class BanLastMCompressor(BaseCompressor):
@@ -193,4 +210,4 @@ class BanLastMCompressor(BaseCompressor):
         mask = self._get_mask()
         self._update_history(mask)
         assert len(mask.nonzero()) > 0
-        return tensor * mask
+        return tensor * mask * self.dim / self.k

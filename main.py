@@ -1,5 +1,6 @@
 '''Train CIFAR10 with PyTorch.'''
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
@@ -18,19 +19,29 @@ from data.mnist import base_setup_data
 from markov_compressors import *
 
 
+def grad_norm(grad: List[Tensor]):
+    result = 0
+    for tensor in grad:
+        norm = tensor.norm().item()
+        result += norm * norm
+    return result
+
+
 def parallel_train(epoch):
     global trainloaders, model, device, criterion, optimizer, scheduler, NUM_WORKERS, compressors
-    global loss_history, coords_history
+    global loss_history, coords_history, norm_history
 
     print('\nEpoch: %d' % epoch)
 
-    grads = [[]] * NUM_WORKERS # : List[List[Tensor]]
+    grads = [] # : List[List[Tensor]]
     losses = [0] * NUM_WORKERS
+    accuracies = [0] * NUM_WORKERS
     number_of_parameter_groups = len([p for p in model.parameters()])
  
     for w in tqdm(range(NUM_WORKERS), bar_format='{l_bar}{bar:50}{r_bar}{bar:-50b}'):
         optimizer.zero_grad()
         losses.append(0)
+        grads.append([])
 
         for p in model.parameters():
             if p.requires_grad:
@@ -45,6 +56,11 @@ def parallel_train(epoch):
             loss.backward()
             losses[w] += loss.item()
 
+            _, predicted = outputs.max(1)
+            total = targets.size(0)
+            correct = predicted.eq(targets).sum().item()
+            accuracies[w] = correct / total
+
             for i, p in enumerate(model.parameters()):
                 if p.requires_grad:
                     assert p.grad is not None, 'Unexpected None in p.grad'
@@ -52,7 +68,6 @@ def parallel_train(epoch):
 
         assert len(grads[w]) == number_of_parameter_groups
 
-    train_loss = sum(losses) / len(losses)
 
     for w in range(NUM_WORKERS):
        apply_compressor(compressors[w], grads[w])
@@ -61,6 +76,8 @@ def parallel_train(epoch):
     for i in range(number_of_parameter_groups):
         avg_grad_in_group = sum([grads[worker][i] for worker in range(NUM_WORKERS)]) / NUM_WORKERS
         gradient.append(avg_grad_in_group)
+
+    norm_history.append(grad_norm(gradient))
 
     optimizer.zero_grad()
     
@@ -73,17 +90,21 @@ def parallel_train(epoch):
     optimizer.step()
     scheduler.step()
 
+    train_loss = sum(losses) / len(losses)
+    accuracy = sum(accuracies) / len(accuracies)
     loss_history.append(train_loss)
     coords_history.append(compressors[0].k)
-    print(f'Epoch: {epoch}, Loss: %.3f' % train_loss)
+    # print(f'Epoch: {epoch}, Loss: %.3f' % train_loss)
+    print(f'Epoch: {epoch}, Loss: {train_loss:.3f}, Acc: {100.*accuracy:.3f}%')
+
 
 
 def main():
     global trainloaders, model, device, criterion, optimizer, scheduler, NUM_WORKERS, compressors
-    global loss_history, coords_history
+    global loss_history, coords_history, norm_history
 
-    NUM_WORKERS = 1
-    NUMBER_OF_EPOCHS = 50
+    NUM_WORKERS = 10
+    NUMBER_OF_EPOCHS = 30
         
     splitted_trainset = split_dataset(Mushrooms(), NUM_WORKERS)  
     trainloaders = [
@@ -107,16 +128,19 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=0.05, weight_decay=0.05)
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
-    compressor = NoneCompressor
+    compressor = SubtrCompressor
     kwargs = {
         'dim': dim,
         'device': device,
+        'alpha': 0.1,
+        'penalty': 0.01,
     }
     compressors = [compressor(**kwargs) for _ in range(NUM_WORKERS)]
 
 
     loss_history = []
     coords_history = []
+    norm_history = []
 
     for epoch in range(NUMBER_OF_EPOCHS):
         parallel_train(epoch)
@@ -137,6 +161,9 @@ def main():
 
     with open(os.path.join(history_path, 'coords.txt'), "w") as f:
         print(*coords_history, sep='\n', file=f)
+    
+    with open(os.path.join(history_path, 'norm.txt'), "w") as f:
+        print(*norm_history, sep='\n', file=f)
 
 
 if __name__ == '__main__':
