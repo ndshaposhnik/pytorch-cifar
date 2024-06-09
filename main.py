@@ -66,6 +66,13 @@ def parallel_train(epoch):
                     assert p.grad is not None, 'Unexpected None in p.grad'
                     grads[w][i] += p.grad
 
+            progress_bar(
+                batch_idx,
+                len(trainloaders[w]),
+                'Loss: %.3f | Acc: %.3f%% (%d/%d)' %
+                (loss/(batch_idx+1), 100.*correct/total, correct, total)
+            )
+
         assert len(grads[w]) == number_of_parameter_groups
 
 
@@ -103,17 +110,28 @@ def main():
     global trainloaders, model, device, criterion, optimizer, scheduler, NUM_WORKERS, compressors
     global loss_history, coords_history, norm_history
 
-    NUM_WORKERS = 10
+    NUM_WORKERS = 5
     NUMBER_OF_EPOCHS = 30
+
+    transform_train = transforms.Compose([
+        transforms.RandomCrop(32, padding=4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    ])
+
+    dataset = torchvision.datasets.CIFAR10(
+        root='./data', train=True, download=True, transform=transform_train)
         
-    splitted_trainset = split_dataset(Mushrooms(), NUM_WORKERS)  
+    splitted_trainset = split_dataset(dataset, NUM_WORKERS)  
     trainloaders = [
-        torch.utils.data.DataLoader(dataset, batch_size=64, shuffle=True, num_workers=2)
+        torch.utils.data.DataLoader(dataset, batch_size=100, shuffle=False, num_workers=2)
         for dataset in splitted_trainset
     ]
 
 
-    model = LogisticRegression(init_dim=112, num_classes=2)
+    # model = LogisticRegression(init_dim=112, num_classes=2)
+    model = SimpleDLA()
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     model = model.to(device)
     model.train()
