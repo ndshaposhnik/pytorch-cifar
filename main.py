@@ -128,12 +128,13 @@ def main():
     optimizer = optim.SGD(model.parameters(), lr=0.05, weight_decay=0.05)
     scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
-    compressor = SubtrCompressor
+    compressor = RandKCompressor
     kwargs = {
         'dim': dim,
         'device': device,
         'alpha': 0.1,
-        'penalty': 0.01,
+        # 'penalty': 0.1,
+        # 'M': 9,
     }
     compressors = [compressor(**kwargs) for _ in range(NUM_WORKERS)]
 
