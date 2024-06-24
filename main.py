@@ -28,7 +28,7 @@ def grad_norm(grad: List[Tensor]):
 
 
 def parallel_train(epoch):
-    global trainloaders, model, device, criterion, optimizer, scheduler, NUM_WORKERS, compressors
+    global trainloaders, model, device, criterion, optimizer, NUM_WORKERS, compressors
     global loss_history, coords_history, norm_history
 
     print('\nEpoch: %d' % epoch)
@@ -88,7 +88,6 @@ def parallel_train(epoch):
             assert gradient[i] is None
 
     optimizer.step()
-    scheduler.step()
 
     train_loss = sum(losses) / len(losses)
     accuracy = sum(accuracies) / len(accuracies)
@@ -100,7 +99,7 @@ def parallel_train(epoch):
 
 
 def main():
-    global trainloaders, model, device, criterion, optimizer, scheduler, NUM_WORKERS, compressors
+    global trainloaders, model, device, criterion, optimizer, NUM_WORKERS, compressors
     global loss_history, coords_history, norm_history
 
     NUM_WORKERS = 10
@@ -126,14 +125,13 @@ def main():
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.SGD(model.parameters(), lr=0.05, weight_decay=0.05)
-    scheduler = torch.optim.lr_scheduler.PolynomialLR(optimizer, total_iters=NUMBER_OF_EPOCHS)
 
-    compressor = RandKCompressor
+    compressor = MultCompressor
     kwargs = {
         'dim': dim,
         'device': device,
         'alpha': 0.1,
-        # 'penalty': 0.1,
+        'penalty': 0.1,
         # 'M': 9,
     }
     compressors = [compressor(**kwargs) for _ in range(NUM_WORKERS)]
